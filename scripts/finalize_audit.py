@@ -41,7 +41,7 @@ def main() -> None:
     summary = load_summary()
     main_cond = summary.get("main_condition", {})
     github_url = get_remote_url()
-    desktop_state = "copied to visible Desktop" if DESKTOP_PDF.exists() else "pending orchestrator copy"
+    desktop_state = "pending orchestrator copy"
     pdf_state = "exists" if DOWNLOADS_PDF.exists() else "missing"
     audit = f"""# Final Audit
 
