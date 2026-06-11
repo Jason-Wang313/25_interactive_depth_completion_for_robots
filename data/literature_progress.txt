@@ -1,0 +1,45 @@
+starting literature retrieval
+query 01/55 page 1: 100 rows :: active depth completion robot
+query 01/55 page 2: 100 rows :: active depth completion robot
+query 02/55 page 1: 100 rows :: robot active perception depth completion
+query 02/55 page 2: 100 rows :: robot active perception depth completion
+query 03/55 page 1: 100 rows :: next best view robot 3D reconstruction
+query 03/55 page 2: 100 rows :: next best view robot 3D reconstruction
+query 04/55 page 1: 100 rows :: view planning occlusion manipulation depth
+query 04/55 page 2: 100 rows :: view planning occlusion manipulation depth
+query 05/55 page 1: 100 rows :: depth completion RGB-D robot manipulation
+query 05/55 page 2: 100 rows :: depth completion RGB-D robot manipulation
+query 06/55 page 1: 100 rows :: sparse-to-dense depth completion robotics
+query 06/55 page 2: 100 rows :: sparse-to-dense depth completion robotics
+query 07/55 page 1: 100 rows :: lidar depth completion autonomous driving
+query 07/55 page 2: 100 rows :: lidar depth completion autonomous driving
+query 08/55 page 1: 100 rows :: transparent object depth completion robot
+query 08/55 page 2: 100 rows :: transparent object depth completion robot
+query 09/55 page 1: 64 rows :: ClearGrasp transparent objects depth completion
+query 09/55 page 2: 0 rows :: ClearGrasp transparent objects depth completion
+query 10/55 page 1: 100 rows :: active vision robotics occlusion
+query 10/55 page 2: 100 rows :: active vision robotics occlusion
+query 11/55 page 1: 100 rows :: active 3D perception robots
+query 11/55 page 2: 100 rows :: active 3D perception robots
+query 12/55 page 1: 100 rows :: robot exploration occupancy mapping next best view
+query 12/55 page 2: 100 rows :: robot exploration occupancy mapping next best view
+query 13/55 page 1: 100 rows :: sensor planning robot reconstruction
+query 13/55 page 2: 100 rows :: sensor planning robot reconstruction
+query 14/55 page 1: 100 rows :: object reconstruction next best view manipulation
+query 14/55 page 2: 100 rows :: object reconstruction next best view manipulation
+query 15/55 page 1: 100 rows :: occlusion-aware depth completion
+query 15/55 page 2: 100 rows :: occlusion-aware depth completion
+query 16/55 page 1: 100 rows :: scene completion RGB-D robotics
+query 16/55 page 2: 100 rows :: scene completion RGB-D robotics
+query 17/55 page 1: 100 rows :: 3D scene completion robot
+query 17/55 page 2: 100 rows :: 3D scene completion robot
+query 18/55 page 1: 100 rows :: multi-view depth completion
+query 18/55 page 2: 100 rows :: multi-view depth completion
+query 19/55 page 1: 100 rows :: depth hole filling RGB-D
+query 19/55 page 2: 100 rows :: depth hole filling RGB-D
+query 20/55 page 1: 100 rows :: RGB-D inpainting depth map hole filling
+query 20/55 page 2: 100 rows :: RGB-D inpainting depth map hole filling
+stopping early after enough unique raw works
+raw rows: 3864
+unique rows after dedupe: 2567
+wrote 1000 rows to C:\Users\wangz\robotics_60_paper_batch\25_interactive_depth_completion_for_robots\docs\related_work_matrix.csv

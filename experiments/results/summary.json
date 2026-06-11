@@ -1,0 +1,46 @@
+{
+  "by_method_all_conditions": {
+    "coverage_neutral": {
+      "mean_rmse": 0.7958981767216894,
+      "median_rmse": 0.8245221098749655,
+      "std_rmse": 0.3861325730152744,
+      "n": 11200
+    },
+    "hcpp": {
+      "mean_rmse": 0.5561503322514411,
+      "median_rmse": 0.5356502218033004,
+      "std_rmse": 0.33880711275931513,
+      "n": 11200
+    },
+    "oracle": {
+      "mean_rmse": 0.5560816399888205,
+      "median_rmse": 0.5338727863938123,
+      "std_rmse": 0.3384023670031356,
+      "n": 11200
+    },
+    "passive": {
+      "mean_rmse": 1.0654043866659808,
+      "median_rmse": 1.0621940370174285,
+      "std_rmse": 0.25864968217765893,
+      "n": 11200
+    },
+    "random_motion": {
+      "mean_rmse": 0.800156550701016,
+      "median_rmse": 0.8339605603503568,
+      "std_rmse": 0.38474803870635327,
+      "n": 11200
+    }
+  },
+  "main_condition": {
+    "baseline_m": 0.1,
+    "clutter": 0.15,
+    "hcpp_mean_rmse": 0.32941287931642194,
+    "passive_mean_rmse": 1.0618394986336646,
+    "random_mean_rmse": 0.6779931337789411,
+    "coverage_neutral_mean_rmse": 0.6698823215568944,
+    "hcpp_vs_passive_percent_reduction": 68.97714958425466,
+    "hcpp_vs_random_percent_reduction": 51.41353755599734,
+    "hcpp_vs_coverage_neutral_percent_reduction": 50.82526158462831,
+    "n_scenes": 700
+  }
+}
