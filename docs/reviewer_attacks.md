@@ -10,3 +10,4 @@
 8. The formal theorem is too narrow. Response: keep it as a clean impossibility witness and rely on simulation for breadth.
 9. The robot feasibility model is minimal. Response: frame the action set as a replaceable local feasible-action sampler, not a full controller.
 10. The paper overclaims novelty. Response: restrict novelty to the central mechanism and boundary conditions documented in `docs/novelty_boundary_map.md`.
+11. The boundary-side cue is assumed to be reliable. Response: accept this as a core limitation; the v2 stress shows HCPP RMSE rises to 0.544 m at 30% sign error and 0.693 m at 50% sign error, slightly worse than random motion.

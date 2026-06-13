@@ -17,6 +17,7 @@ DOWNLOADS_PDF = Path("C:/Users/wangz/Downloads/25.pdf")
 TEMPLATE_ZIP = PAPER / "iclr2026.zip"
 ICLR_ZIP_URL = "https://github.com/ICLR/Master-Template/raw/master/iclr2026.zip"
 SUMMARY_JSON = ROOT / "experiments" / "results" / "summary.json"
+BOUNDARY_STRESS_JSON = ROOT / "experiments" / "results" / "boundary_cue_stress_summary.json"
 
 
 def clean(s: str) -> str:
@@ -94,6 +95,19 @@ def read_summary() -> dict:
     }
 
 
+def read_boundary_stress() -> list[dict]:
+    if BOUNDARY_STRESS_JSON.exists():
+        return json.loads(BOUNDARY_STRESS_JSON.read_text(encoding="utf-8"))
+    return []
+
+
+def stress_item(rows: list[dict], sign_error_rate: float) -> dict:
+    for row in rows:
+        if abs(float(row.get("sign_error_rate", -1.0)) - sign_error_rate) < 1e-12:
+            return row
+    return {}
+
+
 def copy_references() -> None:
     src = ROOT / "data" / "top_references.bib"
     dst = PAPER / "references.bib"
@@ -118,8 +132,10 @@ def copy_references() -> None:
     dst.write_text(text, encoding="utf-8")
 
 
-def write_tex(summary: dict) -> None:
+def write_tex(summary: dict, boundary_stress: list[dict]) -> None:
     main = summary["main_condition"]
+    stress_30 = stress_item(boundary_stress, 0.30)
+    stress_50 = stress_item(boundary_stress, 0.50)
     tex = r"""
 \documentclass{article}
 \usepackage{iclr2026_conference,times}
@@ -145,8 +161,11 @@ Paper under double-blind review}
 \begin{document}
 \maketitle
 
+\paragraph{Submission-hardening version: v2.}
+This revision adds a boundary-cue sign-error stress test. At 30\% corrupted hole-boundary signs, HCPP RMSE rises to \STRESSRMSETHIRTY m; at 50\%, it rises to \STRESSRMSEFIFTY m, which is \STRESSDELTARANDOMFIFTY m relative to random motion. The supported claim is therefore conditional on reliable boundary-side estimation or an explicit fallback exploration policy.
+
 \begin{abstract}
-Depth completion is usually framed as a prediction problem: given a fixed RGB-D or RGB-LiDAR observation with holes, infer the missing metric depth. A robot, however, can often move. This paper argues that some depth holes should be treated as action targets rather than pixels to hallucinate. We introduce Hole-Conditioned Parallax Probing (HCPP), a small active 3D perception mechanism that converts a hole adjacent to a depth discontinuity into a set of competing depth hypotheses, chooses a feasible micro-motion whose parallax creates witness rays, and fuses only the newly observed evidence before committing to depth. A simple identifiability result shows that passive completion cannot distinguish two scenes that induce the same first observation and hole mask, while an off-axis view can. In a controlled synthetic robot-camera suite with occlusion-boundary holes, HCPP reduces hole RMSE by \PASSIVEREDUCTION\% versus passive fill, \RANDOMREDUCTION\% versus random motion, and \NEUTRALREDUCTION\% versus a coverage-neutral motion at a 10 cm budget. The evidence is intentionally modest: it supports the mechanism and the broken assumption, not real-robot deployment.
+Depth completion is usually framed as a prediction problem: given a fixed RGB-D or RGB-LiDAR observation with holes, infer the missing metric depth. A robot, however, can often move. This paper argues that some depth holes should be treated as action targets rather than pixels to hallucinate. We introduce Hole-Conditioned Parallax Probing (HCPP), a small active 3D perception mechanism that converts a hole adjacent to a depth discontinuity into a set of competing depth hypotheses, chooses a feasible micro-motion whose parallax creates witness rays, and fuses only the newly observed evidence before committing to depth. A simple identifiability result shows that passive completion cannot distinguish two scenes that induce the same first observation and hole mask, while an off-axis view can. In a controlled synthetic robot-camera suite with occlusion-boundary holes, HCPP reduces hole RMSE by \PASSIVEREDUCTION\% versus passive fill, \RANDOMREDUCTION\% versus random motion, and \NEUTRALREDUCTION\% versus a coverage-neutral motion at a 10 cm budget. A v2 stress test shows the boundary: if the hole-boundary sign cue is corrupted 50\% of the time, HCPP becomes \STRESSWORSERANDOMFIFTY m worse than random motion. The evidence is intentionally modest: it supports the mechanism and the broken assumption, not real-robot deployment.
 \end{abstract}
 
 \section{Introduction}
@@ -243,8 +262,18 @@ HCPP & \HCPPRMSE & proposed mechanism \\
 
 At the main operating point, HCPP obtains \HCPPRMSE m mean hole RMSE compared with \PASSIVERMSE m for passive fill, \RANDOMRMSE m for random motion, and \NEUTRALRMSE m for a coverage-neutral motion. The result supports the mechanism-level claim: when a hole is a local ambiguity caused by occlusion geometry, directional parallax can be more valuable than another passive fill.
 
+\paragraph{V2 boundary-cue stress.}
+The main suite gives HCPP a nearly perfect boundary-side cue. To attack that assumption, we corrupt the sign selected from the hole boundary before executing the same 10 cm parallax probe, over 20 seeds and 300 scenes per seed. Table~\ref{tab:boundary-stress} shows that HCPP degrades smoothly as sign reliability falls. At 30\% sign error, RMSE rises to \STRESSRMSETHIRTY m; at 50\%, HCPP is worse than random motion by \STRESSWORSERANDOMFIFTY m. HCPP is therefore best read as a witness-motion primitive that needs calibrated boundary geometry, not as a complete active-depth system.
+
+\begin{table}[t]
+\centering
+\caption{V2 boundary-cue stress at 10 cm motion budget and 0.15 clutter. $\Delta$ vs random is positive when corrupted HCPP is worse than the v1 random-motion baseline.}
+\label{tab:boundary-stress}
+\input{boundary_cue_stress_table.tex}
+\end{table}
+
 \section{Limitations}
-The evidence is synthetic and intentionally small. The model assumes a visible depth discontinuity, calibrated camera motion, opaque layered geometry, and a local feasible lateral action. It does not solve transparent-object perception broadly, dynamic scenes, safety-aware manipulation, or real RGB-D noise. The paper should be read as a mechanism proposal with a formal ambiguity witness, not as a completed robot system.
+The evidence is synthetic and intentionally small. The model assumes a visible depth discontinuity, reliable boundary-side estimation, calibrated camera motion, opaque layered geometry, and a local feasible lateral action. The v2 stress shows that corrupted boundary signs can erase the advantage and even underperform random motion, so a deployed system needs a sign-confidence test, multi-direction fallback, or uncertainty-aware view policy. It does not solve transparent-object perception broadly, dynamic scenes, safety-aware manipulation, or real RGB-D noise. The paper should be read as a mechanism proposal with a formal ambiguity witness, not as a completed robot system.
 
 \section{Conclusion}
 Interactive depth completion reframes some missing-depth pixels as questions a robot can ask physically. HCPP is a first, minimal version of that reframing: use the hole boundary to choose a parallax probe, collect witness rays, then complete. The core bet is that for embodied perception, changing the observation can be more honest than hallucinating the missing surface.
@@ -255,6 +284,7 @@ Interactive depth completion reframes some missing-depth pixels as questions a r
 \appendix
 \section{Reproducibility}
 The synthetic suite is generated by \texttt{scripts/run\_experiment.py}. Literature artifacts are generated by \texttt{scripts/fetch\_literature.py}. The paper source and template provenance are in \texttt{paper/}.
+The v2 boundary-cue stress is in \texttt{experiments/results/boundary\_cue\_stress.csv} and \texttt{experiments/results/boundary\_cue\_stress\_summary.json}.
 
 \end{document}
 """
@@ -267,6 +297,10 @@ The synthetic suite is generated by \texttt{scripts/run\_experiment.py}. Literat
         "NEUTRALRMSE": f"{main['coverage_neutral_mean_rmse']:.3f}",
         "HCPPRMSE": f"{main['hcpp_mean_rmse']:.3f}",
         "NSCENES": str(main["n_scenes"]),
+        "STRESSRMSETHIRTY": f"{float(stress_30.get('mean_rmse', 0.0)):.3f}",
+        "STRESSRMSEFIFTY": f"{float(stress_50.get('mean_rmse', 0.0)):.3f}",
+        "STRESSDELTARANDOMFIFTY": f"{float(stress_50.get('delta_vs_random_rmse', 0.0)):+.3f}",
+        "STRESSWORSERANDOMFIFTY": f"{abs(float(stress_50.get('delta_vs_random_rmse', 0.0))):.3f}",
     }
     for key, value in replacements.items():
         tex = tex.replace("\\" + key, value)
@@ -279,7 +313,8 @@ def main() -> None:
     failures = fetch_template()
     copy_references()
     summary = read_summary()
-    write_tex(summary)
+    boundary_stress = read_boundary_stress()
+    write_tex(summary, boundary_stress)
     if failures:
         write_child_status("paper assembly complete with template warning", "compile with pdflatex/bibtex and inspect logs", failures)
     else:

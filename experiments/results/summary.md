@@ -14,8 +14,16 @@ Synthetic 1D pinhole depth scenes model a robot RGB-D camera facing foreground o
 - HCPP reduction vs random: 51.4%
 - HCPP reduction vs coverage-neutral: 50.8%
 
+## V2 Boundary-Cue Stress
+- Stress protocol: corrupt the boundary-derived motion sign before executing the same 10 cm probe, across 20 seeds and 300 scenes per seed.
+- 30% sign-error HCPP mean RMSE: 0.5440 m.
+- 50% sign-error HCPP mean RMSE: 0.6931 m.
+- 50% sign-error delta vs random-motion baseline: +0.0152 m.
+
 ## Files
 - `episode_results.csv`: all condition-level results.
+- `boundary_cue_stress.csv`: v2 sign-error stress rows.
+- `boundary_cue_stress_summary.json`: v2 sign-error stress summary.
 - `rmse_by_method.png`: main bar plot.
 - `baseline_sensitivity.png`: motion-budget sensitivity.
 - `example_scene.png`: qualitative hole example.

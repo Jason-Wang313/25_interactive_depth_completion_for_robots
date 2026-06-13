@@ -147,6 +147,30 @@ def complete_with_motion(scene: dict, method: str, baseline: float, clutter: flo
     return completed, frac, sign
 
 
+def complete_with_forced_sign(
+    scene: dict,
+    sign: int,
+    baseline: float,
+    clutter: float,
+    rng: np.random.Generator,
+) -> tuple[np.ndarray, float, int]:
+    true_depth = scene["true_depth"]
+    observed = scene["observed"]
+    mask = scene["mask"]
+    passive = interpolate_fill(observed, mask)
+    frac = reveal_fraction("hcpp", sign, scene["side"], baseline, scene["hole_width"], clutter, rng)
+    idx = np.flatnonzero(mask)
+    n_reveal = int(round(frac * len(idx)))
+    completed = passive.copy()
+    if n_reveal > 0:
+        if sign == scene["side"]:
+            chosen = idx[-n_reveal:] if scene["side"] == -1 else idx[:n_reveal]
+        else:
+            chosen = rng.choice(idx, size=min(n_reveal, len(idx)), replace=False)
+        completed[chosen] = true_depth[chosen] + rng.normal(0.0, 0.015, size=len(chosen))
+    return completed, frac, sign
+
+
 def rmse(a: np.ndarray, b: np.ndarray, mask: np.ndarray) -> float:
     e = a[mask] - b[mask]
     return float(np.sqrt(np.mean(e * e)))
@@ -213,6 +237,99 @@ def summarize(rows: list[dict]) -> dict:
             "n_scenes": int(hcpp.size),
         },
     }
+
+
+def run_boundary_cue_stress(
+    seeds: range = range(25, 45),
+    n_scenes: int = 300,
+    sign_error_rates: tuple[float, ...] = (0.0, 0.05, 0.10, 0.20, 0.30, 0.50),
+) -> list[dict]:
+    rows: list[dict] = []
+    for seed in seeds:
+        scene_rng = np.random.default_rng(seed)
+        scenes = [make_scene(scene_rng) for _ in range(n_scenes)]
+        for sign_error_rate in sign_error_rates:
+            for scene_id, scene in enumerate(scenes):
+                stress_seed = seed * 1_000_000 + scene_id * 1_000 + int(sign_error_rate * 1_000)
+                stress_rng = np.random.default_rng(stress_seed)
+                sign = estimate_boundary_sign(scene["observed"], scene["mask"])
+                if stress_rng.random() < sign_error_rate:
+                    sign = -sign if sign != 0 else int(stress_rng.choice([-1, 1]))
+                completed, frac, chosen_sign = complete_with_forced_sign(
+                    scene, sign, baseline=0.10, clutter=0.15, rng=stress_rng
+                )
+                passive = interpolate_fill(scene["observed"], scene["mask"])
+                rows.append(
+                    {
+                        "seed": seed,
+                        "scene_id": scene_id,
+                        "sign_error_rate": sign_error_rate,
+                        "rmse": rmse(completed, scene["true_depth"], scene["mask"]),
+                        "passive_rmse": rmse(passive, scene["true_depth"], scene["mask"]),
+                        "reveal_fraction": frac,
+                        "chosen_sign": chosen_sign,
+                        "true_sign": scene["side"],
+                        "wrong_sign": int(chosen_sign != scene["side"]),
+                    }
+                )
+    return rows
+
+
+def summarize_boundary_cue_stress(rows: list[dict], main_summary: dict) -> list[dict]:
+    random_main = float(main_summary["main_condition"]["random_mean_rmse"])
+    passive_main = float(main_summary["main_condition"]["passive_mean_rmse"])
+    out: list[dict] = []
+    for sign_error_rate in sorted({float(r["sign_error_rate"]) for r in rows}):
+        subset = [r for r in rows if abs(float(r["sign_error_rate"]) - sign_error_rate) < 1e-12]
+        seed_means = []
+        for seed in sorted({int(r["seed"]) for r in subset}):
+            vals = [float(r["rmse"]) for r in subset if int(r["seed"]) == seed]
+            seed_means.append(float(np.mean(vals)))
+        mean_rmse = float(np.mean(seed_means))
+        std_rmse = float(np.std(seed_means, ddof=1))
+        wrong_sign_rate = float(np.mean([int(r["wrong_sign"]) for r in subset]))
+        out.append(
+            {
+                "sign_error_rate": sign_error_rate,
+                "seeds": len(seed_means),
+                "scenes_per_seed": len(subset) // max(1, len(seed_means)),
+                "mean_rmse": mean_rmse,
+                "std_rmse_across_seeds": std_rmse,
+                "wrong_sign_rate": wrong_sign_rate,
+                "reduction_vs_passive_percent": 100.0 * (passive_main - mean_rmse) / passive_main,
+                "delta_vs_random_rmse": mean_rmse - random_main,
+            }
+        )
+    return out
+
+
+def write_boundary_cue_stress(rows: list[dict], summary_rows: list[dict]) -> None:
+    path = RESULTS / "boundary_cue_stress.csv"
+    with path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+        writer.writeheader()
+        writer.writerows(rows)
+    (RESULTS / "boundary_cue_stress_summary.json").write_text(
+        json.dumps(summary_rows, indent=2), encoding="utf-8"
+    )
+    lines = [
+        "\\begin{tabular}{lrrrr}",
+        "\\toprule",
+        "Sign error & HCPP RMSE & Seed SD & Wrong sign & $\\Delta$ vs random \\\\",
+        "\\midrule",
+    ]
+    for item in summary_rows:
+        lines.append(
+            f"{100 * float(item['sign_error_rate']):.0f}\\% & "
+            f"{float(item['mean_rmse']):.3f} & "
+            f"{float(item['std_rmse_across_seeds']):.3f} & "
+            f"{100 * float(item['wrong_sign_rate']):.1f}\\% & "
+            f"{float(item['delta_vs_random_rmse']):+.3f} \\\\"
+        )
+    lines.extend(["\\bottomrule", "\\end{tabular}", ""])
+    table = "\n".join(lines)
+    (RESULTS / "boundary_cue_stress_table.tex").write_text(table, encoding="utf-8")
+    (ROOT / "paper" / "boundary_cue_stress_table.tex").write_text(table, encoding="utf-8")
 
 
 def write_csv(rows: list[dict]) -> None:
@@ -283,8 +400,10 @@ def plot_results(rows: list[dict]) -> None:
     plt.close()
 
 
-def write_summary_md(summary: dict) -> None:
+def write_summary_md(summary: dict, boundary_summary: list[dict]) -> None:
     main = summary["main_condition"]
+    stress_30 = next((x for x in boundary_summary if abs(float(x["sign_error_rate"]) - 0.30) < 1e-12), {})
+    stress_50 = next((x for x in boundary_summary if abs(float(x["sign_error_rate"]) - 0.50) < 1e-12), {})
     lines = [
         "# Experiment Summary",
         "",
@@ -302,8 +421,16 @@ def write_summary_md(summary: dict) -> None:
         f"- HCPP reduction vs random: {main['hcpp_vs_random_percent_reduction']:.1f}%",
         f"- HCPP reduction vs coverage-neutral: {main['hcpp_vs_coverage_neutral_percent_reduction']:.1f}%",
         "",
+        "## V2 Boundary-Cue Stress",
+        "- Stress protocol: corrupt the boundary-derived motion sign before executing the same 10 cm probe, across 20 seeds and 300 scenes per seed.",
+        f"- 30% sign-error HCPP mean RMSE: {float(stress_30.get('mean_rmse', 0.0)):.4f} m.",
+        f"- 50% sign-error HCPP mean RMSE: {float(stress_50.get('mean_rmse', 0.0)):.4f} m.",
+        f"- 50% sign-error delta vs random-motion baseline: {float(stress_50.get('delta_vs_random_rmse', 0.0)):+.4f} m.",
+        "",
         "## Files",
         "- `episode_results.csv`: all condition-level results.",
+        "- `boundary_cue_stress.csv`: v2 sign-error stress rows.",
+        "- `boundary_cue_stress_summary.json`: v2 sign-error stress summary.",
         "- `rmse_by_method.png`: main bar plot.",
         "- `baseline_sensitivity.png`: motion-budget sensitivity.",
         "- `example_scene.png`: qualitative hole example.",
@@ -314,22 +441,46 @@ def write_summary_md(summary: dict) -> None:
     (RESULTS / "summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def patch_claims(summary: dict) -> None:
+def patch_claims(summary: dict, boundary_summary: list[dict]) -> None:
     path = ROOT / "docs" / "claims.md"
     if not path.exists():
         return
     main = summary["main_condition"]
-    text = path.read_text(encoding="utf-8")
+    lines = path.read_text(encoding="utf-8").splitlines()
     replacement = (
         f"| HCPP improves hole RMSE over passive fill, random motion, and a coverage-neutral motion in the synthetic suite. | Supported in controlled simulation. | Main condition: HCPP {main['hcpp_mean_rmse']:.3f} m vs passive {main['passive_mean_rmse']:.3f} m, random {main['random_mean_rmse']:.3f} m, coverage-neutral {main['coverage_neutral_mean_rmse']:.3f} m. | Synthetic only. |"
     )
-    text = re_sub_claim(text, replacement)
-    path.write_text(text, encoding="utf-8")
-
-
-def re_sub_claim(text: str, replacement: str) -> str:
-    old = "| HCPP improves hole RMSE over passive fill, random motion, and a coverage-neutral motion in the synthetic suite. | To be filled after experiments. | `experiments/results/summary.json`. | Synthetic only. |"
-    return text.replace(old, replacement)
+    stress_30 = next((x for x in boundary_summary if abs(float(x["sign_error_rate"]) - 0.30) < 1e-12), {})
+    stress_50 = next((x for x in boundary_summary if abs(float(x["sign_error_rate"]) - 0.50) < 1e-12), {})
+    stress_replacement = (
+        "| HCPP depends on reliable hole-boundary sign cues. | Supported as a v2 limitation. | "
+        f"Boundary-cue stress: 30% sign-error RMSE {float(stress_30.get('mean_rmse', 0.0)):.3f} m; "
+        f"50% sign-error RMSE {float(stress_50.get('mean_rmse', 0.0)):.3f} m, "
+        f"{float(stress_50.get('delta_vs_random_rmse', 0.0)):+.3f} m versus random motion. | "
+        "Requires calibrated boundary-side estimation or a fallback exploration policy. |"
+    )
+    updated: list[str] = []
+    saw_main = False
+    saw_stress = False
+    for line in lines:
+        if line.startswith("| HCPP improves hole RMSE over passive fill"):
+            updated.append(replacement)
+            saw_main = True
+        elif line.startswith("| HCPP depends on reliable hole-boundary sign cues."):
+            updated.append(stress_replacement)
+            saw_stress = True
+        else:
+            updated.append(line)
+    if not saw_main:
+        updated.append(replacement)
+    if not saw_stress:
+        insert_at = len(updated)
+        for idx, line in enumerate(updated):
+            if line.startswith("| HCPP is ready for direct real-robot deployment."):
+                insert_at = idx
+                break
+        updated.insert(insert_at, stress_replacement)
+    path.write_text("\n".join(updated) + "\n", encoding="utf-8")
 
 
 def main() -> None:
@@ -338,10 +489,13 @@ def main() -> None:
     write_csv(rows)
     summary = summarize(rows)
     (RESULTS / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    boundary_rows = run_boundary_cue_stress()
+    boundary_summary = summarize_boundary_cue_stress(boundary_rows, summary)
+    write_boundary_cue_stress(boundary_rows, boundary_summary)
     plot_results(rows)
-    write_summary_md(summary)
-    patch_claims(summary)
-    write_child_status("experiment artifacts complete", "assemble ICLR paper and compile PDF")
+    write_summary_md(summary, boundary_summary)
+    patch_claims(summary, boundary_summary)
+    write_child_status("v2 experiment artifacts complete", "assemble ICLR paper and compile PDF")
 
 
 if __name__ == "__main__":
